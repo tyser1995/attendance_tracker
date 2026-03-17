@@ -47,7 +47,7 @@ Seeded automatically on first launch (empty database only):
 | `admin` | `admin123` | Admin |
 | `staff` | `staff123` | Staff |
 
-> **Change default passwords** after first login via **Settings → User Management**.
+> **Change default passwords** after first login via **User Management**.
 
 ---
 
@@ -105,7 +105,9 @@ attendance_tracker/
 
 ---
 
-## Getting Started
+## For Developers — Getting Started
+
+> Flutter is only required on the **build machine**. Other computers that just need to run the app do not need Flutter installed — see [Deploying to Other Computers](#deploying-to-other-computers-no-flutter-required) below.
 
 ### Prerequisites
 
@@ -134,38 +136,52 @@ Leave blank to run in local-only mode. Credentials can also be set at runtime in
 ### 3. Run in development
 
 ```bash
-# Browser
+# Browser (localhost only)
 flutter run -d chrome
 
 # Expose to local network (other devices on same Wi-Fi)
 flutter run -d web-server --web-port 8080 --web-hostname 0.0.0.0
 ```
 
+### 4. Build for production
+
+```bash
+flutter build web --release
+```
+
+Output goes to `build\web\` — plain HTML/JS/CSS, no Flutter runtime needed to serve it.
+
 ---
 
 ## Installing on Windows (Auto-start on Boot)
 
-Builds the app once and registers it to start automatically with Windows — no Flutter needed after building.
+Runs the app automatically whenever Windows starts. **Flutter is not required on this machine** — only the built `build\web\` folder and a file server.
 
 ### Requirements
 
-- **Python 3** — [python.org](https://python.org) — check **"Add Python to PATH"** during install
-  _OR_ **Node.js** — [nodejs.org](https://nodejs.org)
+Install one of the following on the Windows machine:
+
+| Option | Download | Notes |
+|---|---|---|
+| **Python 3** _(recommended)_ | [python.org/downloads](https://python.org/downloads) | Check **"Add Python to PATH"** during install |
+| **Node.js** | [nodejs.org](https://nodejs.org) | LTS version recommended |
 
 ### Steps
 
 ```bat
-REM 1. Build (run once; repeat after any code changes)
+REM 1. Build on your dev machine (requires Flutter)
 flutter build web --release
 
-REM 2. Test manually — opens http://localhost:8080
+REM 2. Copy build\web\ and the scripts\ folder to the target Windows machine
+
+REM 3. Test the server manually — opens http://localhost:8080
 scripts\start_server.bat
 
-REM 3. Register auto-start (right-click → Run as administrator)
+REM 4. Register auto-start (right-click → Run as administrator)
 scripts\install_autostart.bat
 ```
 
-After step 3, the server starts automatically on every Windows login.
+After step 4, the server launches automatically on every Windows login.
 
 ```bat
 REM Start immediately without rebooting
@@ -180,17 +196,61 @@ scripts\uninstall_autostart.bat
 | From | URL |
 |---|---|
 | This computer | `http://localhost:8080` |
-| Other devices on same network | `http://<host-local-ip>:8080` |
+| Other devices on same Wi-Fi / LAN | `http://<host-local-ip>:8080` |
 
-Find your local IP: open Command Prompt → `ipconfig` → **IPv4 Address** under your active adapter.
+Find your local IP: open Command Prompt → `ipconfig` → **IPv4 Address** under your active network adapter (e.g. `192.168.1.10`).
 
 ### Reset to clean state
 
-To wipe demo/test data and keep only user accounts:
+To wipe all data and keep only the default user accounts:
 
 1. Open Chrome → `http://localhost:8080`
-2. `F12` → **Application** → **Storage** → **Clear site data**
+2. `F12` → **Application** tab → **Storage** → **Clear site data**
 3. Refresh — only the 3 default accounts are re-seeded
+
+---
+
+## Deploying to Other Computers (No Flutter Required)
+
+Once built, the app is just static files. Any computer on your network can run it with a tiny file server — **no Flutter, no Dart, no source code needed**.
+
+### What to copy to the other PC
+
+```
+build\web\              ← the entire built folder
+scripts\start_server.bat
+scripts\install_autostart.bat   ← optional, for auto-start
+```
+
+### Option A — Python (recommended)
+
+1. Install [Python 3](https://python.org/downloads) — check **"Add Python to PATH"**
+2. Double-click `start_server.bat`
+3. Open `http://localhost:8080`
+
+### Option B — Node.js
+
+1. Install [Node.js](https://nodejs.org)
+2. Double-click `start_server.bat`
+3. Open `http://localhost:8080`
+
+The `start_server.bat` script automatically detects Python or Node.js and uses whichever is available.
+
+### Option C — Zero install (Caddy portable server)
+
+No Python or Node.js needed at all.
+
+1. Download `caddy_windows_amd64.exe` from [github.com/caddyserver/caddy/releases](https://github.com/caddyserver/caddy/releases)
+2. Rename it to `caddy.exe` and place it inside `build\web\`
+3. Create `build\web\run.bat` with this content:
+   ```bat
+   @echo off
+   start "" "http://localhost:8080"
+   caddy file-server --root . --listen :8080
+   ```
+4. Double-click `run.bat`
+
+> **Note:** Each browser/device stores data in its own local IndexedDB. To share data across multiple computers, switch to Supabase in **Settings → Database**.
 
 ---
 
@@ -268,7 +328,7 @@ Each student ID scan auto-advances to the next status for the current day. Maxim
 
 ## Initial Page Setting
 
-In **Settings → Initial Page** (super admin), choose between:
+In **Settings → Initial Page** (super admin only), choose between:
 
 - **Login Page** _(default)_ — users must sign in before accessing anything
 - **Scanner** — app opens directly on the Time Log screen; a **Login** button appears in the top bar for staff who need to manage data

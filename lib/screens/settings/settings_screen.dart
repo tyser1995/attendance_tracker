@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/backup_manager.dart';
 import '../../core/backup_scheduler.dart';
 import '../../core/theme.dart';
+import '../../providers/auth_methods_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/db_config_provider.dart';
 
@@ -396,6 +397,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 24),
 
+              // Authentication Methods — super_admin only
+              if (ref.watch(isSuperAdminProvider)) ...[
+                _SectionHeader(
+                    label: 'Authentication Methods',
+                    icon: Icons.fingerprint_rounded),
+                const SizedBox(height: 4),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    'Enable additional login methods. Password is always available. '
+                    'Enroll credentials per user in User Management.',
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const _AuthMethodsCard(),
+                const SizedBox(height: 24),
+              ],
+
               // Scheduled Backup — super_admin only
               if (ref.watch(isSuperAdminProvider)) ...[
                 _SectionHeader(
@@ -661,6 +682,125 @@ class _InfoRow extends StatelessWidget {
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ],
       );
+}
+
+// ── Auth Methods Card ─────────────────────────────────────────────────────────
+
+class _AuthMethodsCard extends ConsumerWidget {
+  const _AuthMethodsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final configAsync = ref.watch(authMethodsProvider);
+    return Card(
+      child: configAsync.when(
+        loading: () =>
+            const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator()),
+        error: (e, _) => Text('Error: $e'),
+        data: (config) => Column(
+          children: [
+            _AuthMethodTile(
+              icon: Icons.credit_card_rounded,
+              title: 'RFID Card',
+              subtitle: 'HID keyboard emulator — tap card to login',
+              value: config.rfid,
+              onChanged: (v) =>
+                  ref.read(authMethodsProvider.notifier).setRfid(v),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _AuthMethodTile(
+              icon: Icons.document_scanner_rounded,
+              title: 'Barcode',
+              subtitle: 'Scan 1D barcode with camera (card_id field)',
+              value: config.barcode,
+              onChanged: (v) =>
+                  ref.read(authMethodsProvider.notifier).setBarcode(v),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _AuthMethodTile(
+              icon: Icons.qr_code_scanner_rounded,
+              title: 'QR Code',
+              subtitle: 'Scan generated QR code with camera',
+              value: config.qrCode,
+              onChanged: (v) =>
+                  ref.read(authMethodsProvider.notifier).setQrCode(v),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _AuthMethodTile(
+              icon: Icons.face_rounded,
+              title: 'Face Recognition',
+              subtitle: 'face-api.js — requires internet & camera (HTTPS)',
+              value: config.face,
+              onChanged: (v) =>
+                  ref.read(authMethodsProvider.notifier).setFace(v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthMethodTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _AuthMethodTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (value ? AppTheme.primary : AppTheme.textSecondary)
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon,
+                size: 20,
+                color:
+                    value ? AppTheme.primary : AppTheme.textSecondary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: value
+                            ? AppTheme.textPrimary
+                            : AppTheme.textSecondary)),
+                Text(subtitle,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.textSecondary)),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeThumbColor: AppTheme.primary,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Scheduled Backup Card ─────────────────────────────────────────────────────

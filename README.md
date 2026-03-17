@@ -18,13 +18,15 @@ A Flutter web app for tracking student attendance in educational institutions. S
 | **ID Patterns** | Define allowed ID formats using mask syntax (e.g. `##-#####-#`). Scanned IDs are validated before logging. |
 | **Reports** | Date-range reports with bar chart, per-student log counts, export to CSV / Excel / PDF. |
 | **User Management** | Super admin can create, edit, and delete user accounts. |
-| **Settings** | Configure initial page, switch DB source, manage Supabase credentials. |
+| **Settings** | Configure initial page, switch DB source, manage Supabase credentials, backup/restore data, and schedule automatic backups. |
+| **Data Backup & Restore** | Export all data as a JSON backup, restore from a previous backup, or import attendance records from an exported CSV file. |
+| **Scheduled Backup** | Super admin can set one or more daily backup times (e.g. 12:00 PM and 6:00 PM). The app auto-downloads a backup at each scheduled time while the tab is open. |
 
 ---
 
 ## Role-Based Access
 
-| Screen | Super Admin | Admin | Staff |
+| Screen / Feature | Super Admin | Admin | Staff |
 |---|:---:|:---:|:---:|
 | Time Log (`/scanner`) | ✓ | ✓ | ✓ |
 | Attendance Log (`/attendance`) | ✓ | ✓ | ✓ |
@@ -34,6 +36,8 @@ A Flutter web app for tracking student attendance in educational institutions. S
 | Reports (`/reports`) | ✓ | ✓ | — |
 | User Management (`/users`) | ✓ | — | — |
 | Settings (`/settings`) | ✓ | — | — |
+| Data Backup & Restore | ✓ | — | — |
+| Scheduled Backup Config | ✓ | — | — |
 
 ---
 
@@ -332,6 +336,33 @@ In **Settings → Initial Page** (super admin only), choose between:
 
 - **Login Page** _(default)_ — users must sign in before accessing anything
 - **Scanner** — app opens directly on the Time Log screen; a **Login** button appears in the top bar for staff who need to manage data
+
+---
+
+## Data Persistence & Backup
+
+Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides three layers of protection:
+
+### Layer 1 — Persistent Storage API (automatic)
+On every startup, the app calls `navigator.storage.persist()`. The browser marks the IndexedDB as **persistent**, preventing automatic eviction. Works on Chrome, Edge, and Firefox.
+
+### Layer 2 — Data Backup & Restore (Settings → Data Backup & Restore)
+
+| Action | Description |
+|---|---|
+| **Export Full Backup (JSON)** | Downloads a `.json` file containing all students, courses, attendance records, and ID patterns |
+| **Restore from Backup (JSON)** | Picks a `.json` backup file and merges all records back into the local database |
+| **Import Attendance from CSV** | Picks an exported `.csv` file (from Reports) and imports attendance records, skipping duplicates |
+
+### Layer 3 — Scheduled Auto-Backup (Settings → Scheduled Backup — super admin only)
+Set one or more daily backup times. While the browser tab remains open, the app automatically downloads a full JSON backup at each scheduled time and shows a notification.
+
+**Example:** Set `12:00 PM` and `6:00 PM` → the app downloads a backup at noon and again at 6 PM every day.
+
+> The browser tab must remain open for scheduled backups to run. For fully unattended backups, use **Supabase** (Settings → Database) — all data syncs to the cloud automatically.
+
+### Layer 4 — Supabase Cloud (Settings → Database)
+Switch to Supabase to store all data in a cloud PostgreSQL database. Browser storage clearing becomes irrelevant — data always reloads from Supabase.
 
 ---
 

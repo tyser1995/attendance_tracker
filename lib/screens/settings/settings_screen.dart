@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/backup_manager.dart';
+import '../../core/backup_scheduler.dart';
 import '../../core/theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/db_config_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -17,6 +20,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _testingConnection = false;
   String? _testResult;
   bool _testSuccess = false;
+
+  bool _backupBusy = false;
+  String? _backupMessage;
+  bool _backupSuccess = false;
 
   @override
   void dispose() {
@@ -306,6 +313,108 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 24),
 
+              // Data Backup & Restore
+              _SectionHeader(label: 'Data Backup & Restore', icon: Icons.backup_rounded),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  'Export all data as a JSON backup or restore from a previous backup. '
+                  'You can also import attendance records from an exported CSV file.',
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_backupMessage != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: (_backupSuccess ? AppTheme.success : AppTheme.danger)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: (_backupSuccess ? AppTheme.success : AppTheme.danger)
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _backupSuccess
+                                    ? Icons.check_circle_rounded
+                                    : Icons.error_rounded,
+                                size: 16,
+                                color: _backupSuccess ? AppTheme.success : AppTheme.danger,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _backupMessage!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: _backupSuccess ? AppTheme.success : AppTheme.danger,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ElevatedButton.icon(
+                        icon: _backupBusy
+                            ? const SizedBox(
+                                height: 14,
+                                width: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.download_rounded, size: 16),
+                        label: const Text('Export Full Backup (JSON)'),
+                        onPressed: _backupBusy ? null : _exportBackup,
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.upload_rounded, size: 16),
+                        label: const Text('Restore from Backup (JSON)'),
+                        onPressed: _backupBusy ? null : _importBackup,
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.table_rows_rounded, size: 16),
+                        label: const Text('Import Attendance from CSV'),
+                        onPressed: _backupBusy ? null : _importCsv,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Scheduled Backup — super_admin only
+              if (ref.watch(isSuperAdminProvider)) ...[
+                _SectionHeader(
+                    label: 'Scheduled Backup',
+                    icon: Icons.schedule_rounded),
+                const SizedBox(height: 4),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    'Set times for automatic daily backups. The browser tab must remain open for scheduled backups to run.',
+                    style:
+                        TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const _ScheduledBackupCard(),
+                const SizedBox(height: 24),
+              ],
+
               // App info
               _SectionHeader(label: 'About', icon: Icons.info_rounded),
               const SizedBox(height: 10),
@@ -368,6 +477,67 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         const SnackBar(content: Text('Credentials saved'), backgroundColor: AppTheme.success),
       );
       setState(() => _testResult = null);
+    }
+  }
+
+  Future<void> _exportBackup() async {
+    setState(() {
+      _backupBusy = true;
+      _backupMessage = null;
+    });
+    try {
+      await BackupManager.exportBackup();
+      if (mounted) {
+        setState(() {
+          _backupSuccess = true;
+          _backupMessage = 'Backup downloaded successfully.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _backupSuccess = false;
+          _backupMessage = 'Export failed: $e';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _importBackup() async {
+    setState(() {
+      _backupBusy = true;
+      _backupMessage = null;
+    });
+    try {
+      final result = await BackupManager.importBackup();
+      if (mounted) {
+        setState(() {
+          _backupSuccess = result.success;
+          _backupMessage = result.message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
+    }
+  }
+
+  Future<void> _importCsv() async {
+    setState(() {
+      _backupBusy = true;
+      _backupMessage = null;
+    });
+    try {
+      final result = await BackupManager.importCsv();
+      if (mounted) {
+        setState(() {
+          _backupSuccess = result.success;
+          _backupMessage = result.message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
     }
   }
 
@@ -491,6 +661,158 @@ class _InfoRow extends StatelessWidget {
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ],
       );
+}
+
+// ── Scheduled Backup Card ─────────────────────────────────────────────────────
+
+class _ScheduledBackupCard extends ConsumerWidget {
+  const _ScheduledBackupCard();
+
+  String _fmt12h(String hhmm) {
+    final parts = hhmm.split(':');
+    final h = int.parse(parts[0]);
+    final m = parts[1];
+    final period = h < 12 ? 'AM' : 'PM';
+    final hour = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    return '$hour:$m $period';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheduleAsync = ref.watch(backupScheduleProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: scheduleAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Text('Error: $e'),
+          data: (times) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (times.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'No backup times set. Add a time below.',
+                    style: TextStyle(
+                        fontSize: 13, color: AppTheme.textSecondary),
+                  ),
+                )
+              else
+                ...times.map((t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: AppTheme.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.alarm_rounded,
+                                size: 18, color: AppTheme.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _fmt12h(t),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded,
+                                  size: 18, color: AppTheme.danger),
+                              tooltip: 'Remove',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => ref
+                                  .read(backupScheduleProvider.notifier)
+                                  .removeTime(t),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
+              const SizedBox(height: 4),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add_alarm_rounded, size: 16),
+                label: const Text('Add Backup Time'),
+                onPressed: () => _pickTime(context, ref, times),
+              ),
+              if (times.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: AppTheme.warning.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 14, color: AppTheme.warning),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Keep this browser tab open for scheduled backups to run automatically.',
+                          style: TextStyle(
+                              fontSize: 11, color: AppTheme.warning),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickTime(
+      BuildContext context, WidgetRef ref, List<String> existing) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      helpText: 'Select backup time',
+    );
+    if (picked == null) return;
+
+    final hhmm =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+
+    if (existing.contains(hhmm)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('This backup time is already scheduled.'),
+          backgroundColor: AppTheme.warning,
+        ));
+      }
+      return;
+    }
+
+    await ref.read(backupScheduleProvider.notifier).addTime(hhmm);
+
+    if (context.mounted) {
+      final h = picked.hour == 0
+          ? 12
+          : (picked.hour > 12 ? picked.hour - 12 : picked.hour);
+      final m = picked.minute.toString().padLeft(2, '0');
+      final period = picked.hour < 12 ? 'AM' : 'PM';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Backup scheduled at $h:$m $period daily.'),
+        backgroundColor: AppTheme.success,
+      ));
+    }
+  }
 }
 
 const _sqlSchema = '''

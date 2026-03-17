@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
+import 'core/persistent_storage.dart';
 import 'data/local/sembast_helper.dart';
 
 void main() async {
@@ -15,6 +16,9 @@ void main() async {
   // Initialize local DB (sembast — pure Dart, no WASM) and seed demo data
   await SembastHelper.instance.database;
   await SembastHelper.instance.seedIfEmpty();
+
+  // Request persistent storage so the browser won't auto-clear IndexedDB
+  await requestPersistentStorage();
 
   // Initialize Supabase if credentials are saved
   final prefs = await SharedPreferences.getInstance();

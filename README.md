@@ -17,8 +17,9 @@ A Flutter web app for tracking student attendance in educational institutions. S
 | **Courses** | Manage course catalogue (code, name, year level). Duplicate course code is rejected. |
 | **ID Patterns** | Define allowed ID formats using mask syntax (e.g. `##-#####-#`). Scanned IDs are validated before logging. |
 | **Reports** | Date-range reports with bar chart, per-student log counts, export to CSV / Excel / PDF. |
-| **User Management** | Super admin can create, edit, and delete user accounts. |
-| **Settings** | Configure initial page, switch DB source, manage Supabase credentials, backup/restore data, and schedule automatic backups. |
+| **User Management** | Super admin can create, edit, and delete user accounts. Assign RFID/barcode card IDs, generate QR codes, and enroll face descriptors per user. |
+| **Authentication Methods** | Super admin chooses which login methods are active: Password, RFID/Card swipe, QR Code scan, Barcode scan, Face Recognition. |
+| **Settings** | Configure initial page, switch DB source, manage Supabase credentials, backup/restore data, schedule automatic backups, and manage authentication methods. |
 | **Data Backup & Restore** | Export all data as a JSON backup, restore from a previous backup, or import attendance records from an exported CSV file. |
 | **Scheduled Backup** | Super admin can set one or more daily backup times (e.g. 12:00 PM and 6:00 PM). The app auto-downloads a backup at each scheduled time while the tab is open. |
 
@@ -35,7 +36,9 @@ A Flutter web app for tracking student attendance in educational institutions. S
 | ID Patterns (`/patterns`) | ✓ | ✓ | — |
 | Reports (`/reports`) | ✓ | ✓ | — |
 | User Management (`/users`) | ✓ | — | — |
+| Assign Credentials (QR / Card / Face) | ✓ | — | — |
 | Settings (`/settings`) | ✓ | — | — |
+| Authentication Methods Config | ✓ | — | — |
 | Data Backup & Restore | ✓ | — | — |
 | Scheduled Backup Config | ✓ | — | — |
 
@@ -69,6 +72,10 @@ Seeded automatically on first launch (empty database only):
 | Export | pdf · printing · excel |
 | Environment | flutter_dotenv |
 | UI | google_fonts · Material 3 |
+| QR / Barcode scanning | mobile_scanner 6 |
+| QR code display | qr_flutter 4 |
+| Face recognition | face-api.js 0.22.2 (via `dart:js_interop` bridge) |
+| Preferences | shared_preferences |
 
 ---
 
@@ -80,9 +87,22 @@ attendance_tracker/
 │   ├── main.dart                   # Bootstrap — DB init, Supabase init
 │   ├── app.dart                    # MaterialApp + router wiring
 │   ├── config/router.dart          # GoRouter routes + auth/role guard
-│   ├── core/                       # Theme, utils, report exporter, download helpers
+│   ├── core/
+│   │   ├── theme.dart
+│   │   ├── auth_utils.dart         # Password hashing
+│   │   ├── backup_manager.dart     # JSON/CSV export-import
+│   │   ├── backup_scheduler.dart   # Scheduled auto-backup (Timer.periodic)
+│   │   ├── persistent_storage.dart # Browser Persistent Storage API (web/stub)
+│   │   ├── file_picker.dart        # File open/save (web/stub)
+│   │   ├── face_api.dart           # Conditional export → web or stub
+│   │   ├── face_api_web.dart       # dart:js_interop bridge to face-api.js
+│   │   └── face_api_stub.dart      # No-op stubs for non-web
 │   ├── models/                     # AttendanceRecord, Student, Course, IdPattern, AppUser
-│   ├── providers/                  # Riverpod providers
+│   ├── providers/
+│   │   ├── auth_provider.dart      # Login (password / card / QR / face)
+│   │   ├── auth_methods_provider.dart  # Enabled login methods (SharedPreferences)
+│   │   ├── user_provider.dart      # User CRUD + credential management
+│   │   └── ...
 │   ├── data/
 │   │   ├── local/                  # Sembast helper + platform factory (io/web/stub)
 │   │   └── sources/
@@ -90,7 +110,7 @@ attendance_tracker/
 │   │       ├── local/              # Sembast implementations
 │   │       └── remote/             # Supabase implementations
 │   └── screens/
-│       ├── auth/                   # Login
+│       ├── auth/                   # Multi-method login (Password / RFID / Scan / Face)
 │       ├── scanner/                # Time Log (initial page)
 │       ├── attendance/
 │       ├── dashboard/
@@ -98,13 +118,14 @@ attendance_tracker/
 │       ├── courses/
 │       ├── patterns/
 │       ├── reports/
-│       ├── users/                  # User management (super admin only)
-│       └── settings/
+│       ├── users/                  # User management + credential assignment
+│       └── settings/               # Auth methods, backup, DB, initial page
 ├── scripts/
 │   ├── start_server.bat            # Starts local web server (Python or Node)
 │   ├── install_autostart.bat       # Registers server in Windows Task Scheduler
 │   └── uninstall_autostart.bat     # Removes auto-start
-└── web/                            # Flutter web entry point
+└── web/
+    └── index.html                  # face-api.js CDN + _faceApi JS bridge
 ```
 
 ---
@@ -305,7 +326,9 @@ create table if not exists users (
   id text primary key,
   username text not null unique,
   password_hash text not null,
-  role text not null default 'staff'  -- 'super_admin' | 'admin' | 'staff'
+  role text not null default 'staff',  -- 'super_admin' | 'admin' | 'staff'
+  card_id text unique,                 -- RFID / barcode credential
+  face_descriptor text                 -- JSON array of 128 floats (face-api.js)
 );
 
 create index if not exists idx_students_idnumber on students(idnumber);
@@ -339,7 +362,53 @@ In **Settings → Initial Page** (super admin only), choose between:
 
 ---
 
-## Data Persistence & Backup
+## Multi-Modal Login
+
+The login screen adapts based on which methods the super admin has enabled in **Settings → Authentication Methods**. Tabs appear automatically — if only one method is enabled, the tab bar is hidden.
+
+| Method | How it works |
+|---|---|
+| **Password** | Standard username + password (always available) |
+| **RFID / Card swipe** | HID keyboard emulator — swipe triggers a text field and submits on Enter |
+| **QR Code** | Camera scan via `mobile_scanner`; each user has a unique QR that encodes their ID |
+| **Barcode** | Same camera scan tab as QR Code; supports Code128, Code39, EAN-13, EAN-8, UPC-A, UPC-E |
+| **Face Recognition** | Webcam + face-api.js (TinyFaceDetector + FaceRecognition); compares 128-float descriptor against enrolled users (Euclidean distance < 0.6 threshold) |
+
+### Managing User Credentials
+
+Open **User Management (`/users`)** → tap the **key icon** on any user → three-tab dialog:
+
+| Tab | Action |
+|---|---|
+| **QR Code** | Displays the user's unique QR code — print or show on screen at login |
+| **Card ID** | Type or swipe an RFID card / barcode to assign it to the user |
+| **Face** | Point webcam at the user's face and click **Enroll Face** to capture and store the descriptor |
+
+### Face Recognition — Technical Notes
+
+- Uses **face-api.js v0.22.2** loaded from CDN (`cdn.jsdelivr.net/npm/face-api.js@0.22.2`)
+- Model weights (TinyFaceDetector, FaceLandmarks68Tiny, FaceRecognition) are fetched from the GitHub CDN on first use and cached by the browser
+- Dart calls JavaScript via `dart:js_interop` through a `window._faceApi` bridge defined in `web/index.html`
+- The `<video>` element is embedded using Flutter's `HtmlElementView` and referenced by DOM id
+- Face descriptors (128 floats) are stored as JSON strings in the local Sembast database
+- **Internet required** on first load to download the model weights (~6 MB total)
+
+---
+
+## Authentication Methods (Settings)
+
+Super admins can toggle each login method independently under **Settings → Authentication Methods**:
+
+- **RFID** — enable if RFID readers are attached
+- **Barcode** — enable for barcode scanners or camera-based barcode scanning
+- **QR Code** — enable to allow QR code login via device camera
+- **Face Recognition** — enable to allow webcam-based face login (web only)
+
+Changes take effect immediately — the login screen's tabs update on next visit.
+
+---
+
+
 
 Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides three layers of protection:
 

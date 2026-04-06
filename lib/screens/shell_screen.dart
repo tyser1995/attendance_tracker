@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/app_config.dart';
 import '../core/backup_scheduler.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/db_config_provider.dart';
+import '../core/trial_service.dart';
+import '../providers/trial_provider.dart';
 
 Color _roleColor(String role) {
   switch (role) {
@@ -73,21 +76,31 @@ class ShellScreen extends ConsumerWidget {
       ));
     });
 
+    final trialStatus = AppConfig.isTrial
+        ? ref.watch(trialStatusProvider).valueOrNull
+        : null;
+
     if (isWide) {
       return Scaffold(
-        body: Row(
+        body: Stack(
           children: [
-            _SideNav(
-              destinations: destinations,
-              selectedIndex: selectedIndex,
-              useRemote: useRemote,
-              user: user?.username ?? '',
-              role: user?.role ?? '',
-              onTap: (i) => context.go(destinations[i].path),
-              onLogout: () => _logout(context, ref),
+            Row(
+              children: [
+                _SideNav(
+                  destinations: destinations,
+                  selectedIndex: selectedIndex,
+                  useRemote: useRemote,
+                  user: user?.username ?? '',
+                  role: user?.role ?? '',
+                  trialStatus: trialStatus,
+                  onTap: (i) => context.go(destinations[i].path),
+                  onLogout: () => _logout(context, ref),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: child),
+              ],
             ),
-            const VerticalDivider(width: 1),
-            Expanded(child: child),
+            if (trialStatus?.expired == true) const _TrialExpiredOverlay(),
           ],
         ),
       );
@@ -101,6 +114,17 @@ class ShellScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(_titleFor(location, destinations)),
         actions: [
+          if (trialStatus != null && !trialStatus.expired)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Chip(
+                label: Text('Trial — ${trialStatus.daysLeft}d left',
+                    style: const TextStyle(fontSize: 11)),
+                backgroundColor: AppTheme.warning.withValues(alpha: 0.15),
+                side: BorderSide(color: AppTheme.warning.withValues(alpha: 0.4)),
+                padding: EdgeInsets.zero,
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Logout',
@@ -108,7 +132,12 @@ class ShellScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: child,
+      body: Stack(
+        children: [
+          child,
+          if (trialStatus?.expired == true) const _TrialExpiredOverlay(),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppTheme.border)),
@@ -155,6 +184,7 @@ class _SideNav extends StatelessWidget {
   final bool useRemote;
   final String user;
   final String role;
+  final TrialStatus? trialStatus;
   final ValueChanged<int> onTap;
   final VoidCallback onLogout;
 
@@ -166,6 +196,7 @@ class _SideNav extends StatelessWidget {
     required this.role,
     required this.onTap,
     required this.onLogout,
+    this.trialStatus,
   });
 
   @override
@@ -229,6 +260,43 @@ class _SideNav extends StatelessWidget {
               ],
             ),
           ),
+          if (trialStatus != null) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: (trialStatus!.expired ? AppTheme.danger : AppTheme.warning).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: (trialStatus!.expired ? AppTheme.danger : AppTheme.warning).withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      trialStatus!.expired ? Icons.lock_rounded : Icons.timer_rounded,
+                      size: 12,
+                      color: trialStatus!.expired ? AppTheme.danger : AppTheme.warning,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      trialStatus!.expired
+                          ? 'Trial Expired'
+                          : 'Trial — ${trialStatus!.daysLeft}d left',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: trialStatus!.expired ? AppTheme.danger : AppTheme.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 4),
@@ -302,6 +370,51 @@ class _SideNav extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TrialExpiredOverlay extends StatelessWidget {
+  const _TrialExpiredOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.75),
+      child: Center(
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_rounded, size: 36, color: AppTheme.danger),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Trial Expired',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Your trial period has ended. Please contact the developer to activate a full license.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

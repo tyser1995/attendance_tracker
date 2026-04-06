@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../core/app_config.dart';
 import '../../core/report_exporter.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
@@ -178,11 +179,18 @@ class _ReportBodyState extends State<_ReportBody> {
             if (_exporting)
               const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
             else ...[
-              _ExportBtn(label: 'CSV', icon: Icons.table_rows_rounded, color: AppTheme.success, onTap: logs.isNotEmpty ? () => _export('csv') : null),
+              _ExportBtn(label: 'CSV', icon: Icons.table_rows_rounded, color: AppTheme.success, onTap: logs.isNotEmpty && !AppConfig.isTrial ? () => _export('csv') : null),
               const SizedBox(width: 8),
-              _ExportBtn(label: 'Excel', icon: Icons.grid_on_rounded, color: const Color(0xFF217346), onTap: logs.isNotEmpty ? () => _export('xlsx') : null),
+              _ExportBtn(label: 'Excel', icon: Icons.grid_on_rounded, color: const Color(0xFF217346), onTap: logs.isNotEmpty && !AppConfig.isTrial ? () => _export('xlsx') : null),
               const SizedBox(width: 8),
-              _ExportBtn(label: 'PDF', icon: Icons.picture_as_pdf_rounded, color: AppTheme.danger, onTap: logs.isNotEmpty ? () => _export('pdf') : null),
+              _ExportBtn(label: 'PDF', icon: Icons.picture_as_pdf_rounded, color: AppTheme.danger, onTap: logs.isNotEmpty && !AppConfig.isTrial ? () => _export('pdf') : null),
+              if (AppConfig.isTrial) ...[
+                const SizedBox(width: 8),
+                const Tooltip(
+                  message: 'Export is disabled in trial mode',
+                  child: Icon(Icons.lock_rounded, size: 16, color: AppTheme.textSecondary),
+                ),
+              ],
             ],
           ],
         ),

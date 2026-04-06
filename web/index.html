@@ -31,6 +31,67 @@
 
   <title>attendance_tracker</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- face-api.js — used for face-recognition login (requires internet on first load) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <!-- Dart-callable bridge for face detection and camera control.
+       All functions accept a videoId string (the <video> element's DOM id).
+       detect() resolves with a JSON string of the 128-float descriptor, or null. -->
+  <script>
+    window._faceApi = {
+      _ready: false,
+      loadModels: function() {
+        var self = this;
+        if (self._ready) return Promise.resolve();
+        // Weights live in the GitHub repo, not the npm package — use GitHub CDN
+        var url = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+        return Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(url),
+          faceapi.nets.faceLandmark68TinyNet.loadFromUri(url),
+          faceapi.nets.faceRecognitionNet.loadFromUri(url)
+        ]).then(function() { self._ready = true; });
+      },
+      detect: function(videoId) {
+        var video = document.getElementById(videoId);
+        if (!this._ready || !video) return Promise.resolve(null);
+        return faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }))
+          .withFaceLandmarks(true)
+          .withFaceDescriptor()
+          .then(function(d) { return d ? JSON.stringify(Array.from(d.descriptor)) : null; });
+      },
+      startCamera: function(videoId) {
+        // Flutter's HtmlElementView may not be in the DOM yet; retry a few times.
+        var self = this;
+        return new Promise(function(resolve, reject) {
+          var attempts = 0;
+          function tryStart() {
+            var video = document.getElementById(videoId);
+            if (!video) {
+              if (++attempts < 20) { setTimeout(tryStart, 100); return; }
+              return reject('face-api: video element not found after retries: ' + videoId);
+            }
+            if (video.srcObject) { resolve(); return; }
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+              .then(function(stream) {
+                video.srcObject = stream;
+                return new Promise(function(r) { video.onloadedmetadata = r; });
+              })
+              .then(resolve).catch(reject);
+          }
+          tryStart();
+        });
+      },
+      stopCamera: function(videoId) {
+        var video = document.getElementById(videoId);
+        if (video && video.srcObject) {
+          video.srcObject.getTracks().forEach(function(t) { t.stop(); });
+          video.srcObject = null;
+        }
+      }
+    };
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

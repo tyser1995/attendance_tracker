@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/backup_scheduler.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/db_config_provider.dart';
@@ -51,6 +52,26 @@ class ShellScreen extends ConsumerWidget {
     final selectedIndex = _selectedIndex(location, destinations);
     final isWide = MediaQuery.sizeOf(context).width >= 768;
     final useRemote = ref.watch(dbConfigProvider).valueOrNull?.useRemote ?? false;
+
+    // Keep the scheduler alive and show snackbar on backup events.
+    ref.watch(backupScheduleProvider);
+    ref.listen(backupEventProvider, (_, message) {
+      if (message == null) return;
+      final isError = message.contains('failed');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(children: [
+          Icon(
+            isError ? Icons.error_rounded : Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(message)),
+        ]),
+        backgroundColor: isError ? AppTheme.danger : AppTheme.success,
+        duration: const Duration(seconds: 5),
+      ));
+    });
 
     if (isWide) {
       return Scaffold(

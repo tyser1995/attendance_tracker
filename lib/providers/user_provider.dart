@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 import 'package:uuid/uuid.dart';
@@ -68,6 +70,34 @@ class UserManagerNotifier extends Notifier<void> {
       update['password_hash'] = hashPassword(newPassword);
     }
     await usersStore.record(id).update(db, update);
+    ref.read(_usersRefreshProvider.notifier).state++;
+    return null;
+  }
+
+  Future<String?> setCardId(String userId, String cardId) async {
+    final trimmed = cardId.trim();
+    final db = await SembastHelper.instance.database;
+    if (trimmed.isNotEmpty) {
+      final existing = await usersStore.findFirst(db,
+          finder: Finder(filter: Filter.and([
+            Filter.equals('card_id', trimmed),
+            Filter.notEquals('__key__', userId),
+          ])));
+      if (existing != null) return 'Card ID already assigned to another user.';
+    }
+    await usersStore
+        .record(userId)
+        .update(db, {'card_id': trimmed.isEmpty ? null : trimmed});
+    ref.read(_usersRefreshProvider.notifier).state++;
+    return null;
+  }
+
+  Future<String?> setFaceDescriptor(
+      String userId, List<double>? descriptor) async {
+    final db = await SembastHelper.instance.database;
+    await usersStore.record(userId).update(db, {
+      'face_descriptor': descriptor == null ? null : jsonEncode(descriptor),
+    });
     ref.read(_usersRefreshProvider.notifier).state++;
     return null;
   }

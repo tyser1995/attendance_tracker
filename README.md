@@ -171,10 +171,57 @@ flutter run -d web-server --web-port 8080 --web-hostname 0.0.0.0
 ### 4. Build for production
 
 ```bash
+# Full / production build
 flutter build web --release
+
+# Trial build (set limits at compile time)
+flutter build web --release \
+  --dart-define=TRIAL_MODE=true \
+  --dart-define=TRIAL_DAYS=30 \
+  --dart-define=TRIAL_STUDENT_LIMIT=50
 ```
 
 Output goes to `build\web\` — plain HTML/JS/CSS, no Flutter runtime needed to serve it.
+
+---
+
+## Trial Mode
+
+Trial builds are configured entirely at compile time via `--dart-define` flags — no runtime toggle or extra dependency needed.
+
+| Flag | Default | Description |
+|---|---|---|
+| `TRIAL_MODE` | `false` | Set to `true` to enable trial restrictions |
+| `TRIAL_DAYS` | `30` | Number of days from first launch before the trial expires |
+| `TRIAL_STUDENT_LIMIT` | `50` | Maximum number of active students allowed |
+
+### Trial restrictions
+
+| Feature | Trial | Full |
+|---|:---:|:---:|
+| Time Log / Attendance | ✓ | ✓ |
+| Students (up to limit) | ✓ | ✓ |
+| Reports — view data & charts | ✓ | ✓ |
+| Reports — export CSV / Excel / PDF | — | ✓ |
+| All features after expiry | — | ✓ |
+
+### Trial indicators
+
+- **Sidebar badge** — shows `Trial — N days left` (orange) or `Trial Expired` (red)
+- **Mobile app bar** — chip showing days remaining
+- **Reports export buttons** — disabled with a lock icon
+- **Expired overlay** — full-screen modal blocks the app on expiry; prompts user to contact the developer
+
+### Run in trial mode (development)
+
+```bash
+flutter run -d chrome --web-port 8080 \
+  --dart-define=TRIAL_MODE=true \
+  --dart-define=TRIAL_DAYS=30 \
+  --dart-define=TRIAL_STUDENT_LIMIT=50
+```
+
+> First launch date is stored in `SharedPreferences` (browser `localStorage`). Clearing site data resets the trial clock.
 
 ---
 

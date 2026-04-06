@@ -16,7 +16,7 @@ A Flutter web app for tracking student attendance in educational institutions. S
 | **Students** | Add, edit, soft-delete student profiles. Duplicate ID number is rejected. |
 | **Courses** | Manage course catalogue (code, name, year level). Duplicate course code is rejected. |
 | **ID Patterns** | Define allowed ID formats using mask syntax (e.g. `##-#####-#`). Scanned IDs are validated before logging. |
-| **Reports** | Date-range reports with bar chart, per-student log counts, export to CSV / Excel / PDF. |
+| **Reports** | Date-range reports defaulting to today. Bar chart shows day name + date (MM/dd). Per-student log counts with paginated table (10 rows/page). Export buttons always visible — disabled when no data. Export to CSV / Excel / PDF (attendance records only). |
 | **User Management** | Super admin can create, edit, and delete user accounts. Assign RFID/barcode card IDs, generate QR codes, and enroll face descriptors per user. |
 | **Authentication Methods** | Super admin chooses which login methods are active: Password, RFID/Card swipe, QR Code scan, Barcode scan, Face Recognition. |
 | **Settings** | Configure initial page, switch DB source, manage Supabase credentials, backup/restore data, schedule automatic backups, and manage authentication methods. |
@@ -421,7 +421,7 @@ On every startup, the app calls `navigator.storage.persist()`. The browser marks
 |---|---|
 | **Export Full Backup (JSON)** | Downloads a `.json` file containing all students, courses, attendance records, and ID patterns |
 | **Restore from Backup (JSON)** | Picks a `.json` backup file and merges all records back into the local database |
-| **Import Attendance from CSV** | Picks an exported `.csv` file (from Reports) and imports attendance records, skipping duplicates |
+| **Import Attendance from CSV** | Picks an exported `.csv` file (from Reports — contains Date, Student ID, Name, Status, Time In, Time Out columns) and imports attendance records, skipping duplicates |
 
 ### Layer 3 — Scheduled Auto-Backup (Settings → Scheduled Backup — super admin only)
 Set one or more daily backup times. While the browser tab remains open, the app automatically downloads a full JSON backup at each scheduled time and shows a notification.

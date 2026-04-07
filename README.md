@@ -29,6 +29,7 @@ A Flutter web app for tracking student attendance in educational institutions. S
 
 | Screen / Feature | Super Admin | Admin | Staff |
 |---|:---:|:---:|:---:|
+| Presentation (`/presentation`) | ✓ | ✓ | ✓ _(public — no login needed)_ |
 | Time Log (`/scanner`) | ✓ | ✓ | ✓ |
 | Attendance Log (`/attendance`) | ✓ | ✓ | ✓ |
 | Students (`/students`) | ✓ | ✓ | — |
@@ -119,7 +120,8 @@ attendance_tracker/
 │       ├── patterns/
 │       ├── reports/
 │       ├── users/                  # User management + credential assignment
-│       └── settings/               # Auth methods, backup, DB, initial page
+│       ├── settings/               # Auth methods, backup, DB, initial page
+│       └── presentation/           # Public slide deck (/presentation — no auth)
 ├── scripts/
 │   ├── start_server.bat            # Starts local web server (Python or Node)
 │   ├── install_autostart.bat       # Registers server in Windows Task Scheduler
@@ -171,10 +173,57 @@ flutter run -d web-server --web-port 8080 --web-hostname 0.0.0.0
 ### 4. Build for production
 
 ```bash
+# Full / production build
 flutter build web --release
+
+# Trial build (set limits at compile time)
+flutter build web --release \
+  --dart-define=TRIAL_MODE=true \
+  --dart-define=TRIAL_DAYS=30 \
+  --dart-define=TRIAL_STUDENT_LIMIT=50
 ```
 
 Output goes to `build\web\` — plain HTML/JS/CSS, no Flutter runtime needed to serve it.
+
+---
+
+## Trial Mode
+
+Trial builds are configured entirely at compile time via `--dart-define` flags — no runtime toggle or extra dependency needed.
+
+| Flag | Default | Description |
+|---|---|---|
+| `TRIAL_MODE` | `false` | Set to `true` to enable trial restrictions |
+| `TRIAL_DAYS` | `30` | Number of days from first launch before the trial expires |
+| `TRIAL_STUDENT_LIMIT` | `50` | Maximum number of active students allowed |
+
+### Trial restrictions
+
+| Feature | Trial | Full |
+|---|:---:|:---:|
+| Time Log / Attendance | ✓ | ✓ |
+| Students (up to limit) | ✓ | ✓ |
+| Reports — view data & charts | ✓ | ✓ |
+| Reports — export CSV / Excel / PDF | — | ✓ |
+| All features after expiry | — | ✓ |
+
+### Trial indicators
+
+- **Sidebar badge** — shows `Trial — N days left` (orange) or `Trial Expired` (red)
+- **Mobile app bar** — chip showing days remaining
+- **Reports export buttons** — disabled with a lock icon
+- **Expired overlay** — full-screen modal blocks the app on expiry; prompts user to contact the developer
+
+### Run in trial mode (development)
+
+```bash
+flutter run -d chrome --web-port 8080 \
+  --dart-define=TRIAL_MODE=true \
+  --dart-define=TRIAL_DAYS=30 \
+  --dart-define=TRIAL_STUDENT_LIMIT=50
+```
+
+> First launch date is stored in `SharedPreferences` (browser `localStorage`). Clearing site data resets the trial clock.
 
 ---
 
@@ -408,9 +457,9 @@ Changes take effect immediately — the login screen's tabs update on next visit
 
 ---
 
+## Data Protection
 
-
-Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides three layers of protection:
+Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides four layers of protection:
 
 ### Layer 1 — Persistent Storage API (automatic)
 On every startup, the app calls `navigator.storage.persist()`. The browser marks the IndexedDB as **persistent**, preventing automatic eviction. Works on Chrome, Edge, and Firefox.
@@ -432,6 +481,48 @@ Set one or more daily backup times. While the browser tab remains open, the app 
 
 ### Layer 4 — Supabase Cloud (Settings → Database)
 Switch to Supabase to store all data in a cloud PostgreSQL database. Browser storage clearing becomes irrelevant — data always reloads from Supabase.
+
+---
+
+## Presentation Mode
+
+The app includes a built-in, publicly accessible slide deck at `/presentation`. No login is required — share the URL directly with clients or stakeholders.
+
+### Accessing the Presentation
+
+| Environment | URL |
+|---|---|
+| Local dev server | `http://localhost:8080/presentation` |
+| LAN / other device | `http://<host-ip>:8080/presentation` |
+| Production deploy | `https://yourdomain.com/presentation` |
+
+### Slide Navigation
+
+| Input | Action |
+|---|---|
+| `→` / `↓` / `Space` | Next slide |
+| `←` / `↑` | Previous slide |
+| Swipe left / right | Next / previous (mobile) |
+| Menu icon (top-left) | Open slide list — jump to any slide |
+| **Go to App** (top-right) | Redirects to `/login` |
+
+### Slides Included
+
+| # | Title |
+|---|---|
+| 1 | Cover / Title |
+| 2 | Agenda |
+| 3 | System Overview |
+| 4 | Authentication Flows |
+| 5 | Time Log / Scanner |
+| 6 | Attendance Log & Reports |
+| 7 | Student, Course & ID Pattern Management |
+| 8 | User Management & Settings |
+| 9 | Data Management & Backup |
+| 10 | Role Access Matrix |
+| 11 | Key Benefits / Closing |
+
+> For the full guide see [`PRESENTATION.md`](PRESENTATION.md).
 
 ---
 

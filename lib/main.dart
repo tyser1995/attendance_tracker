@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/persistent_storage.dart';
+import 'core/trial_service.dart';
 import 'data/local/sembast_helper.dart';
 
 void main() async {
@@ -19,6 +20,9 @@ void main() async {
 
   // Request persistent storage so the browser won't auto-clear IndexedDB
   await requestPersistentStorage();
+
+  // Record first launch date for trial expiry tracking
+  await TrialService.init();
 
   // Initialize Supabase if credentials are saved
   final prefs = await SharedPreferences.getInstance();

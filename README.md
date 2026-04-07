@@ -29,6 +29,7 @@ A Flutter web app for tracking student attendance in educational institutions. S
 
 | Screen / Feature | Super Admin | Admin | Staff |
 |---|:---:|:---:|:---:|
+| Presentation (`/presentation`) | ✓ | ✓ | ✓ _(public — no login needed)_ |
 | Time Log (`/scanner`) | ✓ | ✓ | ✓ |
 | Attendance Log (`/attendance`) | ✓ | ✓ | ✓ |
 | Students (`/students`) | ✓ | ✓ | — |
@@ -119,7 +120,8 @@ attendance_tracker/
 │       ├── patterns/
 │       ├── reports/
 │       ├── users/                  # User management + credential assignment
-│       └── settings/               # Auth methods, backup, DB, initial page
+│       ├── settings/               # Auth methods, backup, DB, initial page
+│       └── presentation/           # Public slide deck (/presentation — no auth)
 ├── scripts/
 │   ├── start_server.bat            # Starts local web server (Python or Node)
 │   ├── install_autostart.bat       # Registers server in Windows Task Scheduler
@@ -455,9 +457,9 @@ Changes take effect immediately — the login screen's tabs update on next visit
 
 ---
 
+## Data Protection
 
-
-Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides three layers of protection:
+Browser storage (IndexedDB) can be cleared by the user or the browser. The app provides four layers of protection:
 
 ### Layer 1 — Persistent Storage API (automatic)
 On every startup, the app calls `navigator.storage.persist()`. The browser marks the IndexedDB as **persistent**, preventing automatic eviction. Works on Chrome, Edge, and Firefox.
@@ -479,6 +481,48 @@ Set one or more daily backup times. While the browser tab remains open, the app 
 
 ### Layer 4 — Supabase Cloud (Settings → Database)
 Switch to Supabase to store all data in a cloud PostgreSQL database. Browser storage clearing becomes irrelevant — data always reloads from Supabase.
+
+---
+
+## Presentation Mode
+
+The app includes a built-in, publicly accessible slide deck at `/presentation`. No login is required — share the URL directly with clients or stakeholders.
+
+### Accessing the Presentation
+
+| Environment | URL |
+|---|---|
+| Local dev server | `http://localhost:8080/presentation` |
+| LAN / other device | `http://<host-ip>:8080/presentation` |
+| Production deploy | `https://yourdomain.com/presentation` |
+
+### Slide Navigation
+
+| Input | Action |
+|---|---|
+| `→` / `↓` / `Space` | Next slide |
+| `←` / `↑` | Previous slide |
+| Swipe left / right | Next / previous (mobile) |
+| Menu icon (top-left) | Open slide list — jump to any slide |
+| **Go to App** (top-right) | Redirects to `/login` |
+
+### Slides Included
+
+| # | Title |
+|---|---|
+| 1 | Cover / Title |
+| 2 | Agenda |
+| 3 | System Overview |
+| 4 | Authentication Flows |
+| 5 | Time Log / Scanner |
+| 6 | Attendance Log & Reports |
+| 7 | Student, Course & ID Pattern Management |
+| 8 | User Management & Settings |
+| 9 | Data Management & Backup |
+| 10 | Role Access Matrix |
+| 11 | Key Benefits / Closing |
+
+> For the full guide see [`PRESENTATION.md`](PRESENTATION.md).
 
 ---
 

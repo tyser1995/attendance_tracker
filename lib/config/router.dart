@@ -16,10 +16,14 @@ import '../screens/patterns/pattern_form_screen.dart';
 import '../screens/reports/reports_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/users/users_screen.dart';
+import '../screens/presentation/presentation_screen.dart';
 
 // Paths by minimum required role
 const _adminPaths = ['/students', '/courses', '/patterns', '/reports'];
 const _superAdminPaths = ['/settings', '/users'];
+
+// Fully public paths — no auth required
+const _publicPaths = ['/login', '/presentation'];
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
@@ -35,7 +39,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isScannerPage = path == '/scanner';
 
       if (!loggedIn) {
-        if (isLoginPage) return null;
+        if (_publicPaths.contains(path)) return null;
         // Allow unauthenticated scanner access when scanner is the home page
         if (isScannerPage && scannerAsHome) return null;
         return scannerAsHome ? '/scanner' : '/login';
@@ -58,6 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
+      GoRoute(path: '/presentation', builder: (c, s) => const PresentationScreen()),
       ShellRoute(
         builder: (context, state, child) => ShellScreen(child: child),
         routes: [

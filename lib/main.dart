@@ -11,8 +11,10 @@ import 'data/local/sembast_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load .env
-  await dotenv.load(fileName: '.env', mergeWith: {});
+  // Load .env (non-fatal — credentials fall back to SharedPreferences)
+  try {
+    await dotenv.load(fileName: '.env', mergeWith: {});
+  } catch (_) {}
 
   // Initialize local DB (sembast — pure Dart, no WASM) and seed demo data
   await SembastHelper.instance.database;
